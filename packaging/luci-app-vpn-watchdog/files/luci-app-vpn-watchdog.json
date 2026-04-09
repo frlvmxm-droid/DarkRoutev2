@@ -1,0 +1,24 @@
+{
+  "luci-app-vpn-watchdog": {
+    "description": "Grant access to the VPN Watchdog LuCI application",
+    "read": {
+      "ubus": {
+        "uci": ["get", "configs"],
+        "session": ["access", "login"]
+      },
+      "uci": ["vpn-watchdog"],
+      "file": {
+        "/tmp/vpn-watchdog/*": ["read"]
+      }
+    },
+    "write": {
+      "ubus": {
+        "uci": ["set", "commit", "delete", "add"]
+      },
+      "uci": ["vpn-watchdog"],
+      "file": {
+        "/etc/vpn-watchdog/configs/*": ["write"]
+      }
+    }
+  }
+}

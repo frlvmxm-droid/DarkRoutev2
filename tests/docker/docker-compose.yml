@@ -1,0 +1,78 @@
+version: "3.9"
+
+# Test environment: a WireGuard server peer + a "router" running vpn-watchdog.
+# Run with:  docker compose up --build
+# Simulate failure with:  ./simulate-failure.sh drop
+# Restore with:          ./simulate-failure.sh restore
+
+networks:
+  wan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+services:
+  # ── WireGuard server (peer that accepts VPN connections) ───────────────────
+  wg-server:
+    image: linuxserver/wireguard:latest
+    container_name: vw-wg-server
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - SERVERURL=172.30.0.10
+      - SERVERPORT=51820
+      - PEERS=1
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+    volumes:
+      - ./wg-server-config:/config
+    ports:
+      - "51820:51820/udp"
+    networks:
+      wan:
+        ipv4_address: 172.30.0.10
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+  # ── "Router" / DUT running vpn-watchdog ───────────────────────────────────
+  router:
+    image: ubuntu:22.04
+    container_name: vw-router
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      - wg-server
+    networks:
+      wan:
+        ipv4_address: 172.30.0.20
+    volumes:
+      - ../../daemon:/daemon:ro
+      - ./router-config:/etc/vpn-watchdog
+      - ./router-run:/tmp/vpn-watchdog
+    environment:
+      - WG_SERVER_IP=172.30.0.10
+    command: >
+      bash -c "
+        apt-get update -q && apt-get install -y -q wireguard iproute2 iptables curl iputils-ping ca-certificates &&
+        echo 'Router ready' &&
+        tail -f /dev/null
+      "
+
+  # ── Traffic blocker (simulates ISP blocking VPN) ──────────────────────────
+  # Used by simulate-failure.sh
+  blocker:
+    image: alpine:latest
+    container_name: vw-blocker
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - wan
+    command: >
+      sh -c "apk add --no-cache iptables && tail -f /dev/null"

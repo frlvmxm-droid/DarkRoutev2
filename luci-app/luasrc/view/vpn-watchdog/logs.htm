@@ -1,0 +1,37 @@
+<%+header%>
+<script src="<%=resource%>/vpn-watchdog/app.js"></script>
+
+<h2><%:VPN Watchdog — Logs%></h2>
+
+<div class="cbi-section">
+  <div class="cbi-section-node" style="margin-bottom:8px">
+    <label>
+      <input type="checkbox" id="vw-autoscroll" checked>
+      <%:Auto-scroll%>
+    </label>
+    &nbsp;
+    <label>
+      <input type="checkbox" id="vw-autorefresh" checked onchange="VWApp.toggleLogRefresh(this.checked)">
+      <%:Auto-refresh (5 s)%>
+    </label>
+    &nbsp;
+    <button class="btn cbi-button" onclick="VWApp.fetchLogs()">↻ <%:Refresh now%></button>
+    <button class="btn cbi-button cbi-button-reset" onclick="VWApp.clearLogView()">✕ <%:Clear view%></button>
+  </div>
+
+  <pre id="vw-log-output" style="
+    background:#1e1e1e;color:#d4d4d4;font-size:12px;
+    padding:12px;border-radius:4px;
+    height:500px;overflow-y:scroll;
+    white-space:pre-wrap;word-break:break-all;
+  "><%:Loading logs...%></pre>
+</div>
+
+<script>
+(function() {
+  VWApp.fetchLogs();
+  VWApp.startLogRefresh();
+})();
+</script>
+
+<%+footer%>

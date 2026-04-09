@@ -1,0 +1,18 @@
+{
+  "id": "example-wg",
+  "name": "Example WireGuard",
+  "protocol": "wg",
+  "enabled": false,
+  "interface_name": "vpn0",
+  "routing_table_id": 100,
+  "mtu": 1420,
+  "wg": {
+    "private_key": "YOUR_PRIVATE_KEY_HERE",
+    "public_key": "PEER_PUBLIC_KEY_HERE",
+    "preshared_key": "",
+    "endpoint": "vpn.example.com:51820",
+    "allowed_ips": ["0.0.0.0/0", "::/0"],
+    "persistent_keepalive": 25,
+    "dns": ["1.1.1.1", "1.0.0.1"]
+  }
+}

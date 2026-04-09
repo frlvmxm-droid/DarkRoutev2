@@ -1,0 +1,25 @@
+{
+  "admin/vpn-watchdog": {
+    "title": "VPN Watchdog",
+    "order": 70,
+    "acl": {
+      "depend": ["luci-app-vpn-watchdog"]
+    }
+  },
+  "admin/vpn-watchdog/dashboard": {
+    "title": "Dashboard",
+    "order": 10
+  },
+  "admin/vpn-watchdog/configs": {
+    "title": "Configurations",
+    "order": 20
+  },
+  "admin/vpn-watchdog/settings": {
+    "title": "Settings",
+    "order": 30
+  },
+  "admin/vpn-watchdog/logs": {
+    "title": "Logs",
+    "order": 40
+  }
+}

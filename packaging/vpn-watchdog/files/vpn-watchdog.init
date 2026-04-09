@@ -1,0 +1,61 @@
+#!/bin/sh /etc/rc.common
+# OpenWrt init script for vpn-watchdog
+# Integrates with procd for process supervision and automatic restart.
+
+USE_PROCD=1
+START=90
+STOP=10
+
+PROG=/usr/bin/vpn-watchdog
+PIDFILE=/tmp/vpn-watchdog/vpn-watchdog.pid
+LOG_LEVEL=info
+
+start_service() {
+    local enabled log_level status_addr
+
+    config_load vpn-watchdog
+    config_get_bool enabled global enabled 1
+    config_get log_level  global log_level  "info"
+    config_get status_addr global status_addr "127.0.0.1:8765"
+
+    [ "$enabled" = "0" ] && {
+        logger -t vpn-watchdog "Disabled in config, not starting."
+        return 0
+    }
+
+    # Ensure runtime directories exist on tmpfs.
+    mkdir -p /tmp/vpn-watchdog /tmp/log
+    chmod 700 /tmp/vpn-watchdog
+
+    procd_open_instance
+    procd_set_param command "$PROG"
+    procd_append_param command -log-level "$log_level"
+    procd_append_param command -status-addr "$status_addr"
+
+    # Respawn: restart up to 5 times within 60 seconds.
+    procd_set_param respawn 60 5 5
+
+    # Redirect stderr to logd.
+    procd_set_param stderr 1
+
+    # PID file for SIGHUP signalling.
+    procd_set_param pidfile "$PIDFILE"
+
+    procd_close_instance
+    logger -t vpn-watchdog "Started (log-level=$log_level, status-addr=$status_addr)"
+}
+
+stop_service() {
+    logger -t vpn-watchdog "Stopping"
+}
+
+reload_service() {
+    # Send SIGHUP to trigger config reload without restart.
+    local pid
+    pid=$(cat "$PIDFILE" 2>/dev/null)
+    [ -n "$pid" ] && kill -HUP "$pid" && logger -t vpn-watchdog "Reloaded (SIGHUP sent)"
+}
+
+service_triggers() {
+    procd_add_reload_trigger vpn-watchdog
+}

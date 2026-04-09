@@ -1,0 +1,157 @@
+<%+header%>
+<script src="<%=resource%>/vpn-watchdog/app.js"></script>
+
+<h2><%:VPN Watchdog — Dashboard%></h2>
+
+<div id="vw-dashboard">
+  <!-- VPN Status card -->
+  <div class="cbi-section">
+    <div class="cbi-section-descr"><%:Real-time VPN connection status and active configuration.%></div>
+    <table class="table" id="vw-status-table">
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:State%></strong></td>
+        <td class="td" id="vw-state"><em><%:Loading...%></em></td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Active Config%></strong></td>
+        <td class="td" id="vw-active-config">—</td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Last Switch%></strong></td>
+        <td class="td" id="vw-last-switch">—</td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Consecutive Failures%></strong></td>
+        <td class="td" id="vw-consec-fails">0</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- DPI Status card -->
+  <div class="cbi-section">
+    <h3><%:DPI Detection Status%></h3>
+    <div class="cbi-section-descr">
+      <%:Automatic analysis of network restrictions. Updated each time the daemon enters PROBING state.%>
+    </div>
+    <table class="table" id="vw-dpi-table">
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Block Type%></strong></td>
+        <td class="td" id="vw-dpi-block">—</td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Evidence%></strong></td>
+        <td class="td" id="vw-dpi-evidence" style="font-size:12px;color:#555">—</td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Last Checked%></strong></td>
+        <td class="td" id="vw-dpi-tested">—</td>
+      </tr>
+      <tr class="tr">
+        <td class="td col-4 left"><strong><%:Learned Variants%></strong></td>
+        <td class="td" id="vw-dpi-learned">0</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Scores table -->
+  <div class="cbi-section">
+    <h3><%:Configuration Scores%></h3>
+    <div class="cbi-section-descr"><%:Historical performance ranking. Higher score = preferred config. DPI bypass history adds a 50%% bonus.%></div>
+    <table class="table" id="vw-scores-table">
+      <tr class="tr table-titles">
+        <th class="th col-3 left"><%:Config ID%></th>
+        <th class="th col-2 left"><%:Score%></th>
+        <th class="th col-2 left"><%:RTT (ms)%></th>
+        <th class="th col-2 left"><%:Loss%%%></th>
+        <th class="th col-1 left"><%:DPI bypass%></th>
+        <th class="th col-2 left"><%:Sessions%></th>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+(function() {
+  var stateColors = {
+    HEALTHY:   '#4caf50',
+    DEGRADED:  '#ff9800',
+    PROBING:   '#2196f3',
+    SWITCHING: '#9c27b0',
+    UNKNOWN:   '#9e9e9e'
+  };
+
+  var dpiColors = {
+    'none':         '#4caf50',
+    'tcp_block':    '#f44336',
+    'http_dpi':     '#ff9800',
+    'tls_dpi':      '#e91e63',
+    'protocol_dpi': '#9c27b0',
+    'unknown':      '#9e9e9e'
+  };
+
+  var dpiLabels = {
+    'none':         '✓ No DPI detected',
+    'tcp_block':    '✗ TCP/IP block',
+    'http_dpi':     '⚠ HTTP-layer DPI',
+    'tls_dpi':      '⚠ TLS fingerprint DPI',
+    'protocol_dpi': '⚠ VPN protocol DPI',
+    'unknown':      '? Unknown'
+  };
+
+  function refresh() {
+    VWApp.fetchStatus(function(data) {
+      // VPN state.
+      var state = data.state || 'UNKNOWN';
+      document.getElementById('vw-state').innerHTML =
+        '<span style="font-weight:bold;color:' + (stateColors[state] || '#9e9e9e') + '">' +
+        state + '</span>';
+      document.getElementById('vw-active-config').textContent =
+        data.active_config_id || '—';
+      document.getElementById('vw-last-switch').textContent =
+        data.last_switch ? new Date(data.last_switch).toLocaleString() : '—';
+      document.getElementById('vw-consec-fails').textContent =
+        data.consecutive_failures || 0;
+
+      // DPI status.
+      var bt = data.dpi_block_type || 'unknown';
+      var color = dpiColors[bt] || '#9e9e9e';
+      var label = dpiLabels[bt] || bt;
+      document.getElementById('vw-dpi-block').innerHTML =
+        '<span style="font-weight:bold;color:' + color + '">' + VWApp.esc(label) + '</span>';
+      var evidence = (data.dpi_evidence || []).join('<br>');
+      document.getElementById('vw-dpi-evidence').innerHTML = evidence || '—';
+      document.getElementById('vw-dpi-tested').textContent =
+        data.dpi_tested_at ? new Date(data.dpi_tested_at).toLocaleString() : '—';
+      document.getElementById('vw-dpi-learned').textContent =
+        data.learned_variants_count || 0;
+
+      // Scores.
+      var tbody = document.getElementById('vw-scores-table');
+      tbody.querySelectorAll('tr.data-row').forEach(function(r) {
+        r.parentNode.removeChild(r);
+      });
+      var scores = data.scores || [];
+      scores.sort(function(a, b) { return VWApp.score(b) - VWApp.score(a); });
+      scores.forEach(function(e) {
+        var dpiPct = ((e.dpi_bypass_success || 0) * 100).toFixed(0) + '%';
+        var dpiStyle = (e.dpi_bypass_success || 0) > 0.5 ? 'color:#4caf50' : '';
+        var tr = document.createElement('tr');
+        tr.className = 'tr data-row';
+        tr.innerHTML =
+          '<td class="td col-3 left">' + VWApp.esc(e.config_id) + '</td>' +
+          '<td class="td col-2">' + VWApp.score(e).toFixed(2) + '</td>' +
+          '<td class="td col-2">' + (e.ewma_rtt_ms || 0).toFixed(1) + '</td>' +
+          '<td class="td col-2">' + ((e.ewma_loss || 0) * 100).toFixed(1) + '</td>' +
+          '<td class="td col-1" style="' + dpiStyle + '">' + dpiPct + '</td>' +
+          '<td class="td col-2">' + (e.sessions_total || 0) + '</td>';
+        tbody.appendChild(tr);
+      });
+    });
+  }
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+
+<%+footer%>

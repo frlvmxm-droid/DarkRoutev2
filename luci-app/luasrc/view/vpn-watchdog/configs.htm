@@ -1,0 +1,192 @@
+<%+header%>
+<script src="<%=resource%>/vpn-watchdog/app.js"></script>
+
+<h2><%:VPN Watchdog — Configurations%></h2>
+
+<div id="vw-configs">
+  <div class="cbi-section">
+    <div class="cbi-section-descr">
+      <%:Add and manage VPN tunnel configurations. Supported protocols: WireGuard, AmneziaWG, VLESS.%>
+    </div>
+
+    <div class="cbi-section-node">
+      <button class="btn cbi-button cbi-button-add" onclick="VWApp.openAddModal()">
+        + <%:Add Configuration%>
+      </button>
+      <button class="btn cbi-button" onclick="VWApp.loadConfigs()">
+        ↻ <%:Refresh%>
+      </button>
+    </div>
+
+    <table class="table" id="vw-configs-table">
+      <tr class="tr table-titles">
+        <th class="th col-2 left"><%:ID%></th>
+        <th class="th col-3 left"><%:Name%></th>
+        <th class="th col-2 left"><%:Protocol%></th>
+        <th class="th col-3 left"><%:Endpoint%></th>
+        <th class="th col-1 left"><%:Enabled%></th>
+        <th class="th col-2 left"><%:Actions%></th>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="vw-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,.5);z-index:9999;overflow-y:auto;">
+  <div style="background:#fff;max-width:680px;margin:40px auto;padding:24px;border-radius:4px;">
+    <h3 id="vw-modal-title"><%:Add Configuration%></h3>
+
+    <div class="cbi-section">
+      <label><%:Import from URI / config text%></label><br>
+      <textarea id="vw-import-text" rows="4" style="width:100%;font-family:monospace;font-size:12px;"
+        placeholder="Paste WireGuard [Interface]+[Peer] block, AWG config, or vless:// URI here..."></textarea>
+      <button class="btn cbi-button" onclick="VWApp.parseImport()"><%:Parse%></button>
+      <button class="btn cbi-button" onclick="VWApp.importVlessBatch()"><%:Import VLESS batch%></button>
+      <div style="margin-top:8px">
+        <label><%:Attach WG/AWG config file%></label><br>
+        <input id="vw-import-file" type="file" accept=".conf,.txt,.cfg"
+               onchange="VWApp.loadImportFile(this)">
+      </div>
+      <div style="margin-top:8px">
+        <label><%:VLESS subscription URL%></label><br>
+        <input id="vw-subscription-url" type="text" style="width:100%"
+               placeholder="https://example.com/subscription">
+        <button class="btn cbi-button" onclick="VWApp.importSubscription()"><%:Load subscription%></button>
+      </div>
+    </div>
+
+    <hr>
+
+    <div id="vw-form-fields">
+      <!-- Common fields -->
+      <table class="table">
+        <tr><td class="td col-3"><label><%:ID%> *</label></td>
+            <td class="td"><input id="f-id" type="text" style="width:100%"></td></tr>
+        <tr><td class="td col-3"><label><%:Name%></label></td>
+            <td class="td"><input id="f-name" type="text" style="width:100%"></td></tr>
+        <tr><td class="td col-3"><label><%:Protocol%> *</label></td>
+            <td class="td">
+              <select id="f-protocol" onchange="VWApp.switchProtocol(this.value)" style="width:100%">
+                <option value="wg">WireGuard</option>
+                <option value="awg">AmneziaWG</option>
+                <option value="vless">VLESS</option>
+              </select>
+            </td></tr>
+        <tr><td class="td col-3"><label><%:Interface name%></label></td>
+            <td class="td"><input id="f-interface" type="text" placeholder="vpn0" style="width:100%"></td></tr>
+        <tr><td class="td col-3"><label><%:Routing table ID%></label></td>
+            <td class="td"><input id="f-table" type="number" placeholder="auto" style="width:100%"></td></tr>
+        <tr><td class="td col-3"><label><%:MTU%></label></td>
+            <td class="td"><input id="f-mtu" type="number" placeholder="1420" style="width:100%"></td></tr>
+        <tr><td class="td col-3"><label><%:Enabled%></label></td>
+            <td class="td"><input id="f-enabled" type="checkbox" checked></td></tr>
+        <tr><td class="td col-3">
+              <label><%:DPI Auto-tune%></label>
+              <div style="font-size:11px;color:#666;margin-top:2px">
+                <%:Automatically try obfuscation variants (MTU, AWG profiles, VLESS fingerprints) when blocked%>
+              </div>
+            </td>
+            <td class="td"><input id="f-dpi-autotune" type="checkbox" checked></td></tr>
+      </table>
+
+      <!-- WireGuard / AmneziaWG fields -->
+      <div id="wg-fields">
+        <h4>WireGuard</h4>
+        <table class="table">
+          <tr><td class="td col-3"><label><%:Private key%> *</label></td>
+              <td class="td"><input id="f-wg-privkey" type="password" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label><%:Peer public key%> *</label></td>
+              <td class="td"><input id="f-wg-pubkey" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label><%:Preshared key%></label></td>
+              <td class="td"><input id="f-wg-psk" type="password" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label><%:Endpoint%> *</label></td>
+              <td class="td"><input id="f-wg-endpoint" type="text" placeholder="vpn.example.com:51820" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label><%:Allowed IPs%></label></td>
+              <td class="td"><input id="f-wg-allowedips" type="text" placeholder="0.0.0.0/0, ::/0" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label><%:Keepalive (s)%></label></td>
+              <td class="td"><input id="f-wg-keepalive" type="number" placeholder="25" style="width:100%"></td></tr>
+        </table>
+      </div>
+
+      <!-- AmneziaWG extra fields -->
+      <div id="awg-fields" style="display:none">
+        <h4>AmneziaWG obfuscation</h4>
+        <table class="table">
+          <tr><td class="td col-3"><label>Jc (junk count)</label></td>
+              <td class="td"><input id="f-awg-jc" type="number" placeholder="4" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Jmin</label></td>
+              <td class="td"><input id="f-awg-jmin" type="number" placeholder="40" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Jmax</label></td>
+              <td class="td"><input id="f-awg-jmax" type="number" placeholder="70" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>S1 (init junk)</label></td>
+              <td class="td"><input id="f-awg-s1" type="number" placeholder="0" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>S2 (resp junk)</label></td>
+              <td class="td"><input id="f-awg-s2" type="number" placeholder="0" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>H1 H2 H3 H4</label></td>
+              <td class="td">
+                <input id="f-awg-h1" type="number" placeholder="H1" style="width:23%;margin-right:2%">
+                <input id="f-awg-h2" type="number" placeholder="H2" style="width:23%;margin-right:2%">
+                <input id="f-awg-h3" type="number" placeholder="H3" style="width:23%;margin-right:2%">
+                <input id="f-awg-h4" type="number" placeholder="H4" style="width:23%">
+              </td></tr>
+        </table>
+      </div>
+
+      <!-- VLESS fields -->
+      <div id="vless-fields" style="display:none">
+        <h4>VLESS</h4>
+        <table class="table">
+          <tr><td class="td col-3"><label>UUID *</label></td>
+              <td class="td"><input id="f-vl-uuid" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Address *</label></td>
+              <td class="td"><input id="f-vl-addr" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Port *</label></td>
+              <td class="td"><input id="f-vl-port" type="number" placeholder="443" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Security</label></td>
+              <td class="td">
+                <select id="f-vl-security" style="width:100%">
+                  <option value="reality">Reality</option>
+                  <option value="tls">TLS</option>
+                  <option value="none">None</option>
+                </select>
+              </td></tr>
+          <tr><td class="td col-3"><label>Flow</label></td>
+              <td class="td"><input id="f-vl-flow" type="text" placeholder="xtls-rprx-vision" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Transport</label></td>
+              <td class="td">
+                <select id="f-vl-transport" style="width:100%">
+                  <option value="tcp">TCP</option>
+                  <option value="ws">WebSocket</option>
+                  <option value="grpc">gRPC</option>
+                  <option value="httpupgrade">HTTP Upgrade</option>
+                </select>
+              </td></tr>
+          <tr><td class="td col-3"><label>SNI</label></td>
+              <td class="td"><input id="f-vl-sni" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Fingerprint</label></td>
+              <td class="td"><input id="f-vl-fp" type="text" placeholder="chrome" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Reality public key</label></td>
+              <td class="td"><input id="f-vl-rpk" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Reality short ID</label></td>
+              <td class="td"><input id="f-vl-rsi" type="text" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Transport path</label></td>
+              <td class="td"><input id="f-vl-path" type="text" placeholder="/" style="width:100%"></td></tr>
+          <tr><td class="td col-3"><label>Local SOCKS5 port</label></td>
+              <td class="td"><input id="f-vl-lport" type="number" placeholder="auto" style="width:100%"></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn cbi-button cbi-button-reset" onclick="VWApp.closeModal()"><%:Cancel%></button>
+      <button class="btn cbi-button cbi-button-save" onclick="VWApp.saveConfig()"><%:Save%></button>
+    </div>
+  </div>
+</div>
+
+<script>
+VWApp.loadConfigs();
+</script>
+
+<%+footer%>

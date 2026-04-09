@@ -1,0 +1,17 @@
+#!/bin/sh
+# uci-defaults script – runs once on first boot after package install.
+
+# Ensure the config directory has correct permissions.
+mkdir -p /etc/vpn-watchdog/configs
+chmod 750 /etc/vpn-watchdog
+chmod 750 /etc/vpn-watchdog/configs
+
+# Remove the shipped example config if it still has placeholder keys.
+if grep -q "YOUR_PRIVATE_KEY_HERE" /etc/vpn-watchdog/configs/example-wg.json 2>/dev/null; then
+    : # Leave it – user hasn't edited it yet, that's fine.
+fi
+
+# Enable and start the service.
+/etc/init.d/vpn-watchdog enable
+
+exit 0
