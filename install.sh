@@ -39,11 +39,49 @@ check_feed_reachable() {
   if wget -q --spider "${FEED_URL}/Packages.gz"; then
     return 0
   fi
-  echo "ERROR: Feed is not reachable: ${FEED_URL}/Packages.gz" >&2
-  echo "Hint: if you moved repo, pass FEED_URL explicitly, e.g.:" >&2
-  echo "  FEED_URL='https://github.com/<owner>/<repo>/releases/latest/download' \\" >&2
-  echo "  wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | sh" >&2
-  exit 1
+  return 1
+}
+
+detect_arch() {
+  opkg print-architecture \
+    | awk '$1=="arch" && $2!="all" && $2!="noarch"{print $2" "$3}' \
+    | sort -k2,2nr \
+    | awk 'NR==1{print $1}'
+}
+
+install_from_release_assets() {
+  API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+  TMP_JSON="/tmp/vpn-watchdog-release.json"
+  wget -qO "${TMP_JSON}" "${API_URL}" || {
+    echo "ERROR: cannot fetch GitHub release metadata: ${API_URL}" >&2
+    return 1
+  }
+
+  ARCH="$(detect_arch)"
+  if [ -z "${ARCH}" ]; then
+    echo "ERROR: cannot detect opkg architecture" >&2
+    return 1
+  fi
+
+  VW_URL="$(grep -Eo 'https://[^"]+vpn-watchdog_[^"]+\.ipk' "${TMP_JSON}" | grep "_${ARCH}\.ipk" | head -n1 || true)"
+  LUCI_URL="$(grep -Eo 'https://[^"]+luci-app-vpn-watchdog_[^"]+\.ipk' "${TMP_JSON}" | grep '_all\.ipk' | head -n1 || true)"
+
+  if [ -z "${VW_URL}" ] || [ -z "${LUCI_URL}" ]; then
+    echo "ERROR: release assets do not contain required IPKs for arch=${ARCH}" >&2
+    echo "Expected assets:" >&2
+    echo "  vpn-watchdog_*_${ARCH}.ipk" >&2
+    echo "  luci-app-vpn-watchdog_*_all.ipk" >&2
+    return 1
+  fi
+
+  log "Feed unreachable; falling back to direct release assets install"
+  log "Downloading ${VW_URL}"
+  wget -qO /tmp/vpn-watchdog.ipk "${VW_URL}"
+  log "Downloading ${LUCI_URL}"
+  wget -qO /tmp/luci-app-vpn-watchdog.ipk "${LUCI_URL}"
+
+  opkg update
+  opkg install /tmp/vpn-watchdog.ipk /tmp/luci-app-vpn-watchdog.ipk
 }
 
 pkg_install() {
@@ -64,14 +102,24 @@ main() {
   opkg print-architecture || true
 
   ensure_feed
-  check_feed_reachable
-
-  log "Updating package lists..."
-  opkg update
-
-  # Core packages.
-  pkg_install vpn-watchdog
-  pkg_install luci-app-vpn-watchdog
+  if check_feed_reachable; then
+    log "Updating package lists..."
+    opkg update
+    # Core packages from feed.
+    pkg_install vpn-watchdog
+    pkg_install luci-app-vpn-watchdog
+  else
+    log "Feed is not reachable: ${FEED_URL}/Packages.gz"
+    if [ "${ALLOW_ASSET_FALLBACK:-1}" = "1" ]; then
+      install_from_release_assets || {
+        echo "Hint: ensure release has Packages.gz or set FEED_URL to a valid feed." >&2
+        exit 1
+      }
+    else
+      echo "ERROR: feed unreachable and fallback disabled (ALLOW_ASSET_FALLBACK=0)" >&2
+      exit 1
+    fi
+  fi
 
   # Optional runtime helpers.
   if [ "${INSTALL_VLESS:-0}" = "1" ]; then

@@ -156,6 +156,8 @@ wget -O - https://raw.githubusercontent.com/frlvmxm-droid/darkroute/main/install
 
 > Важно: для `raw.githubusercontent.com` **не** используется `/blob/` в URL.  
 > Правильный шаблон: `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/install.sh`
+> Если в вашем репозитории нет `Packages.gz`, установщик попробует fallback:
+> скачает `.ipk` из `releases/latest` напрямую (нужны assets для вашей архитектуры и `luci-app-vpn-watchdog_*_all.ipk`).
 
 Опции:
 
