@@ -174,6 +174,13 @@ FEED_URL='https://github.com/<owner>/<repo>/releases/latest/download' \
 wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | sh
 ```
 
+Или через переменную `REPO` (она автоматически сформирует `FEED_URL`):
+
+```sh
+REPO='<owner>/<repo>' \
+wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | sh
+```
+
 ### Метод 1 — через opkg-фид (рекомендуется)
 
 ```sh
