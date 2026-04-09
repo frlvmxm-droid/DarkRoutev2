@@ -25,6 +25,12 @@ INSTALL_VLESS=1 wget -O - https://raw.githubusercontent.com/frlvmxm-droid/darkro
 INSTALL_AWG=1 wget -O - https://raw.githubusercontent.com/frlvmxm-droid/darkroute/main/install.sh | sh
 ```
 
+If repository was moved/forked, make sure env var is passed to `sh` side of pipe:
+
+```sh
+wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | REPO='<owner>/<repo>' sh
+```
+
 The script:
 - adds feed line if missing,
 - runs `opkg update`,

@@ -177,7 +177,11 @@ wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | sh
 Или через переменную `REPO` (она автоматически сформирует `FEED_URL`):
 
 ```sh
-REPO='<owner>/<repo>' \
+# ВАЖНО: переменная должна попадать в `sh`, а не в `wget`.
+wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | REPO='<owner>/<repo>' sh
+
+# или так:
+export REPO='<owner>/<repo>'
 wget -O - https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | sh
 ```
 
